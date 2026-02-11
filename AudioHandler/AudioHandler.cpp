@@ -24,8 +24,8 @@
 #define ID_BTN_SAVE 1001
 #define ID_BTN_PLAY 1002
 
-float gStartNorm = 0.2f; 
-float gEndNorm = 0.8f;
+float gStartNorm = 0.0f; 
+float gEndNorm = 1.0f;
 
 bool gDraggingStart = false;
 bool gDraggingEnd = false;
@@ -125,7 +125,7 @@ void DrawWaveform(HDC hdc, RECT rc) {
             peak = std::max(peak, std::abs(g_snapshot[i]));
         }
 
-        int barH = int(peak * (height / 2));
+        int barH = int(peak * (height));
         MoveToEx(hdc, rc.left + x, centerY - barH, nullptr);
         LineTo(hdc, rc.left + x, centerY + barH);
     }
