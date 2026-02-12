@@ -29,10 +29,11 @@ float gEndNorm = 1.0f;
 
 bool gDraggingStart = false;
 bool gDraggingEnd = false;
+int gDragOffset = 0; // do not snap to center on click
 
 constexpr int SLIDER_HEIGHT = 40;
 constexpr int WAVEFORM_MARGIN = 10;
-constexpr int HANDLE_WIDTH = 6;
+constexpr int HANDLE_WIDTH = 15;
 
 HWND selectionHwnd;
 
@@ -66,27 +67,53 @@ void StartPlay()
     PostMessage(g_hwndMain, WM_PLAYBACK_STARTED, 0, 0);
 }
 
-void DrawSlider(HDC hdc, RECT rc) {
-    int width = rc.right - rc.left;
+void DrawSlider(HDC hdc, RECT rc)
+{
+    int width = rc.right - rc.left - 1;
     int yMid = (rc.top + rc.bottom) / 2;
 
-    int xStart = rc.left + int(gStartNorm * width);
-    int xEnd = rc.left + int(gEndNorm * width);
+    int xStart = rc.left + int((gStartNorm * width));
+    int xEnd = rc.left + int((gEndNorm * width));
 
-    // Track
     HPEN trackPen = CreatePen(PS_SOLID, 2, RGB(120, 120, 120));
-    SelectObject(hdc, trackPen);
+    HPEN oldPen = (HPEN)SelectObject(hdc, trackPen);
+
     MoveToEx(hdc, rc.left, yMid, nullptr);
     LineTo(hdc, rc.right, yMid);
 
-    // Selected region
+    DeleteObject(trackPen);
+
     HPEN selPen = CreatePen(PS_SOLID, 4, RGB(0, 180, 255));
     SelectObject(hdc, selPen);
+
     MoveToEx(hdc, xStart, yMid, nullptr);
     LineTo(hdc, xEnd, yMid);
 
-    // Handles
+    DeleteObject(selPen);
+
+    int radius = HANDLE_WIDTH; 
+
     HBRUSH handleBrush = CreateSolidBrush(RGB(0, 140, 200));
+    HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, handleBrush);
+
+    HPEN handlePen = CreatePen(PS_SOLID, 1, RGB(0, 100, 160));
+    SelectObject(hdc, handlePen);
+
+    // "circles"
+    Ellipse(hdc,
+        xStart - radius,
+        yMid - radius,
+        xStart + radius,
+        yMid + radius);
+
+    Ellipse(hdc,
+        xEnd - radius,
+        yMid - radius,
+        xEnd + radius,
+        yMid + radius);
+
+    // rectangle handles
+    /*HBRUSH handleBrush = CreateSolidBrush(RGB(0, 140, 200));
 
     RECT h1{ xStart - HANDLE_WIDTH, rc.top, xStart + HANDLE_WIDTH, rc.bottom };
     RECT h2{ xEnd - HANDLE_WIDTH, rc.top, xEnd + HANDLE_WIDTH, rc.bottom };
@@ -96,7 +123,13 @@ void DrawSlider(HDC hdc, RECT rc) {
 
     DeleteObject(trackPen);
     DeleteObject(selPen);
+    DeleteObject(handleBrush);*/
+
+    // Cleanup
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
     DeleteObject(handleBrush);
+    DeleteObject(handlePen);
 }
 
 void DrawWaveform(HDC hdc, RECT rc) {
@@ -130,7 +163,7 @@ void DrawWaveform(HDC hdc, RECT rc) {
         LineTo(hdc, rc.left + x, centerY + barH);
     }
 
-    // Draw start/end markers
+    // start + end centers
     int xStart = rc.left + int(gStartNorm * width);
     int xEnd = rc.left + int(gEndNorm * width);
 
@@ -265,14 +298,26 @@ LRESULT CALLBACK SelectionWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        int width = rc.right;
+        RECT sliderRc{ WAVEFORM_MARGIN, 0, rc.right - WAVEFORM_MARGIN, SLIDER_HEIGHT };
+
+        int width = sliderRc.right - sliderRc.left - 1;;
         int x = LOWORD(l);
 
-        int xStart = int(gStartNorm * width);
-        int xEnd = int(gEndNorm * width);
+        int xStart = sliderRc.left + int(gStartNorm * width);
+        int xEnd = sliderRc.left + int(gEndNorm * width);
 
-        if (abs(x - xStart) < 10) gDraggingStart = true;
-        else if (abs(x - xEnd) < 10) gDraggingEnd = true;
+        // offset makes it not snap weirdly on grab
+        if (abs(x - xStart) < 10)
+        {
+            gDraggingStart = true;
+            gDragOffset = x - xStart; 
+            
+        }
+        else if (abs(x - xEnd) < 10)
+        {
+            gDraggingEnd = true;
+            gDragOffset = x - xEnd;
+        }
 
         SetCapture(hwnd);
         return 0;
@@ -284,10 +329,15 @@ LRESULT CALLBACK SelectionWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
 
         RECT rc;
         GetClientRect(hwnd, &rc);
-        int width = rc.right;
 
         int x = GET_X_LPARAM(l);
-        float norm = Clampf((float)x / width, 0.0f, 1.0f);
+
+        RECT sliderRc{ WAVEFORM_MARGIN, 0, rc.right - WAVEFORM_MARGIN, SLIDER_HEIGHT };
+        int width = sliderRc.right - sliderRc.left;
+
+        int offsetAdjusted = x - gDragOffset;
+        float norm = (float)(offsetAdjusted - sliderRc.left) / width;
+        norm = Clampf(norm, 0.0f, 1.0f);
 
         if (gDraggingStart) {
             gStartNorm = Clampf(norm, 0.0f, gEndNorm);
@@ -325,7 +375,7 @@ LRESULT CALLBACK SelectionWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        RECT sliderRc = { 0, 0, rc.right, SLIDER_HEIGHT };
+        RECT sliderRc = { WAVEFORM_MARGIN, 0, rc.right - WAVEFORM_MARGIN, SLIDER_HEIGHT };
         RECT waveRc = {
             WAVEFORM_MARGIN,
             SLIDER_HEIGHT + WAVEFORM_MARGIN,

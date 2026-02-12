@@ -6,7 +6,7 @@ std::vector<float> g_snapshot(BUFFER_SAMPLES);
 std::atomic<size_t> g_writePos{ 0 };
 std::atomic<size_t> g_playPos{ 0 };
 size_t g_playStart{ 0 };
-size_t g_playEnd{ 0 };
+size_t g_playEnd{ BUFFER_SAMPLES };
 std::atomic<bool>   g_playing{ false };
 
 HWND g_hwndMain = nullptr;
