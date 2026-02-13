@@ -8,6 +8,7 @@ std::atomic<size_t> g_playPos{ 0 };
 size_t g_playStart{ 0 };
 size_t g_playEnd{ BUFFER_SAMPLES };
 std::atomic<bool>   g_playing{ false };
+std::atomic<bool> g_testing{ false };
 
 HWND g_hwndMain = nullptr;
 

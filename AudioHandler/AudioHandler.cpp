@@ -23,6 +23,7 @@
 
 #define ID_BTN_SAVE 1001
 #define ID_BTN_PLAY 1002
+#define ID_BTN_TEST 1003
 
 float gStartNorm = 0.0f; 
 float gEndNorm = 1.0f;
@@ -62,8 +63,22 @@ void SaveLast()
 
 void StartPlay()
 {
+    if (g_testing.load()) {
+        wprintf_s(L"AUDIO IS TESTING; not playing...\n");
+        return;
+    }
     g_playPos.store(g_playStart, std::memory_order_relaxed);
     g_playing.store(true, std::memory_order_release);
+    PostMessage(g_hwndMain, WM_PLAYBACK_STARTED, 0, 0);
+}
+
+void StartTest() {
+    if (g_playing.load()) {
+        wprintf_s(L"AUDIO IS PLAYING; not testing...\n");
+        return;
+    }
+    g_playPos.store(g_playStart, std::memory_order_relaxed);
+    g_testing.store(true, std::memory_order_release);
     PostMessage(g_hwndMain, WM_PLAYBACK_STARTED, 0, 0);
 }
 
@@ -234,6 +249,26 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
     case WM_COMMAND: {
         if (LOWORD(w) == ID_BTN_SAVE) SaveLast();
         if (LOWORD(w) == ID_BTN_PLAY) StartPlay();
+        if (LOWORD(w) == ID_BTN_TEST) StartTest();
+        break;
+    }
+
+    case WM_HOTKEY: {
+        switch (w)
+        {
+        case 1: 
+            SaveLast();
+            wprintf_s(L"got 1\n");
+            break;
+        case 2:
+            StartPlay();
+            wprintf_s(L"got 2\n");
+            break;
+        case 3:
+            StartTest();
+            wprintf_s(L"got 3\n");
+            break;
+        }
         break;
     }
 
@@ -247,7 +282,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
             RECT rc = dis->rcItem;
 
             // Pick color based on atomic<bool>
-            COLORREF bg = g_playing.load()
+            COLORREF bg = g_playing.load() || g_testing.load()
                 ? RGB(220, 60, 60) : // active (red)
                   RGB(255, 255, 255);
 
@@ -440,15 +475,25 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     );
     
 
-    CreateWindow(L"BUTTON", L"Save last 5s",
+    CreateWindow(L"BUTTON", L"Save last 5s (5)",
         WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
         20, 20, 130, 45,
         g_hwndMain, (HMENU)ID_BTN_SAVE, h, nullptr);
 
-    CreateWindow(L"BUTTON", L"Play",
+    CreateWindow(L"BUTTON", L"Play (4)",
         WS_CHILD | WS_VISIBLE,
         20, 90, 130, 45,
         g_hwndMain, (HMENU)ID_BTN_PLAY, h, nullptr);
+
+    CreateWindow(L"BUTTON", L"Test (6)",
+        WS_CHILD | WS_VISIBLE,
+        20, 160, 130, 45,
+        g_hwndMain, (HMENU)ID_BTN_TEST, h, nullptr);
+
+    RegisterHotKey(g_hwndMain, 1, MOD_ALT, VK_NUMPAD5);
+    RegisterHotKey(g_hwndMain, 2, MOD_ALT, VK_NUMPAD4);
+    RegisterHotKey(g_hwndMain, 3, MOD_ALT, VK_NUMPAD6);
+
 
     std::thread(AudioThreads::CaptureThread)
         .detach();

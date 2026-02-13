@@ -17,7 +17,8 @@ extern std::atomic<size_t> g_writePos;
 extern std::atomic<size_t> g_playPos;
 extern size_t g_playStart;
 extern size_t g_playEnd;
-extern std::atomic<bool>   g_playing;
+extern std::atomic<bool> g_playing;
+extern std::atomic<bool> g_testing;
 
 extern HWND g_hwndMain;
 

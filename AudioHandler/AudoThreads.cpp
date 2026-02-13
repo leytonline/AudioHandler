@@ -76,7 +76,7 @@ void AudioThreads::PlaybackThread()
 
     while (true)
     {
-        if (!g_playing.load(std::memory_order_acquire))
+        if (!g_playing.load(std::memory_order_acquire) && !g_testing.load(std::memory_order_acquire))
         {
             Sleep(2);
             continue;
@@ -103,6 +103,7 @@ void AudioThreads::PlaybackThread()
             if (pos >= g_playEnd)
             {
                 if (g_playing.exchange(false)) PostMessage(g_hwndMain, WM_PLAYBACK_ENDED, 0, 0);
+                if (g_testing.exchange(false)) PostMessage(g_hwndMain, WM_PLAYBACK_ENDED, 0, 0);
                 f[i] = 0;
             }
             else
