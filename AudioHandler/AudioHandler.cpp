@@ -453,7 +453,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     wprintf(L"Render (app -> device)\n");
     ListClients(eRender);
 
-    wprintf(L"Render (device -> app)\n");
+    wprintf(L"Capture (device -> app)\n");
     ListClients(eCapture);
 
 

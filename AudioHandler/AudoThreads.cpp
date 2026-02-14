@@ -107,7 +107,9 @@ void AudioThreads::PlaybackThread()
                 f[i] = 0;
             }
             else
+            {
                 f[i] = g_snapshot[pos++];
+            }
         }
 
         g_playPos.store(pos, std::memory_order_release);
@@ -190,6 +192,8 @@ void AudioThreads::MicToCableThread()
 
     size_t playPos = g_playStart;
 
+    bool shouldContinue = false;
+
     while (true)
     {
         UINT32 frames = 0;
@@ -221,8 +225,12 @@ void AudioThreads::MicToCableThread()
         BYTE* outData = nullptr;
         ren->GetBuffer(frames, &outData);
 
-        if (g_playing.load())
+        bool isPlaying = g_playing.load();
+
+        if (isPlaying || shouldContinue)
         {
+            if (isPlaying) shouldContinue = true;
+
             float* out = (float*)outData;
 
             for (UINT32 i = 0; i < frames * cableFmt->nChannels; ++i)
@@ -230,7 +238,7 @@ void AudioThreads::MicToCableThread()
                 if (playPos >= g_playEnd)
                 {
                     out[i] = 0.0f;
-                    g_playing.store(false);
+                    shouldContinue = false;
                 }
                 else
                 {
@@ -250,7 +258,7 @@ void AudioThreads::MicToCableThread()
                 memcpy(outData, inData, frames * cableFmt->nBlockAlign);
             }
 
-            playPos = 0;
+            playPos = g_playStart;
         }
 
         ren->ReleaseBuffer(frames, 0);
