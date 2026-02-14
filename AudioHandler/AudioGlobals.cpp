@@ -12,17 +12,30 @@ std::atomic<bool> g_testing{ false };
 
 HWND g_hwndMain = nullptr;
 
+// n is number of total floats to be filled (number in * channels) (needs to be multiplied by sizeof(float))
 void AudioGlobalUtils::Push(const float* in, size_t n)
 {
     size_t p = g_writePos.load(std::memory_order_relaxed);
 
-    for (size_t i = 0; i < n; ++i)
+    if (n > BUFFER_SAMPLES)
     {
-        g_ring[p] = in[i];
-        p = (p + 1) % BUFFER_SAMPLES;
+        wprintf_s(L"YOU GOT A BUFFER BIGGER THAN EXPECTED !!!!! %zu\n", n);
+        wprintf_s(L"YOU GOT A BUFFER BIGGER THAN EXPECTED !!!!! %zu\n", n);
+        wprintf_s(L"YOU GOT A BUFFER BIGGER THAN EXPECTED !!!!! %zu\n", n);
     }
 
-    g_writePos.store(p, std::memory_order_release);
+    // toFill becomes either the number to write OR how many are possibly writeable until the end of the vector
+    size_t toFill = std::min(n, BUFFER_SAMPLES - p);
+    memcpy(g_ring.data() + p, in, toFill * sizeof(float));
+
+    if (n > toFill)
+    {
+        memcpy(g_ring.data(), in + toFill, (n - toFill) * sizeof(float));
+    }
+
+    // ignore branch that compiler would've optimized for fun
+    size_t updatedPos = (p + n) - (n > toFill) * BUFFER_SAMPLES;
+    g_writePos.store(updatedPos, std::memory_order_release);
 }
 
 IMMDevice* AudioGlobalUtils::FindRenderDeviceByName(const wchar_t* target)

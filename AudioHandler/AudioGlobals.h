@@ -1,9 +1,11 @@
 #pragma once
+#define NOMINMAX
 #include <atomic>
 #include <vector>
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <windows.h>
+#include <algorithm>
 
 constexpr int SAMPLE_RATE = 48000; // probably will change
 constexpr int CHANNELS = 2;
