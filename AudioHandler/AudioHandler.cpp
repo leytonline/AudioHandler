@@ -272,46 +272,15 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
         break;
     }
 
-    // IF OWNER DRAW, THEN DO THIS
-    case WM_DRAWITEM: {
-        DRAWITEMSTRUCT* dis = (DRAWITEMSTRUCT*) l;
-
-        if (dis->CtlID == ID_BTN_SAVE)
-        {
-           HDC dc = dis->hDC;
-            RECT rc = dis->rcItem;
-
-            // Pick color based on atomic<bool>
-            COLORREF bg = g_playing.load() || g_testing.load()
-                ? RGB(220, 60, 60) : // active (red)
-                  RGB(255, 255, 255);
-
-            HBRUSH brush = CreateSolidBrush(bg);
-            FillRect(dc, &rc, brush);
-            DeleteObject(brush);
-
-            // Border
-            FrameRect(dc, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            // Text
-            SetBkMode(dc, TRANSPARENT);
-            SetTextColor(dc, RGB(0, 0, 0));
-
-            DrawText(
-                dc,
-                L"Save last 5s",
-                -1,
-                &rc,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE
-            );
-        }
+    case WM_PLAYBACK_STARTED: {
+        HWND hBtnSave = GetDlgItem(g_hwndMain, ID_BTN_SAVE);
+        Button_Enable(hBtnSave, false);
         break;
     }
 
-    case WM_PLAYBACK_STARTED:
     case WM_PLAYBACK_ENDED: {
         HWND hBtnSave = GetDlgItem(g_hwndMain, ID_BTN_SAVE);
-        InvalidateRect(hBtnSave, nullptr, TRUE);
+        Button_Enable(hBtnSave, true);
         break;
     }
 
@@ -476,7 +445,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     
 
     CreateWindow(L"BUTTON", L"Save last 5s (5)",
-        WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+        WS_CHILD | WS_VISIBLE,
         20, 20, 130, 45,
         g_hwndMain, (HMENU)ID_BTN_SAVE, h, nullptr);
 
