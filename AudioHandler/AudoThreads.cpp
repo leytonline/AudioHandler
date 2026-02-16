@@ -140,6 +140,10 @@ void AudioThreads::MicToCableThread()
     );
     if (FAILED(hr)) return;
 
+    // for pitch-shifting
+    Bungee::Stretcher<Bungee::Basic> stretcher(BUNGEE_SAMPLE_RATES, CHANNELS);
+    Bungee::Stream<Bungee::Basic> stream(stretcher, 4800, CHANNELS);
+
     enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &mic);
     cable = AudioGlobalUtils::FindRenderDeviceByName(L"CABLE Input");
 
@@ -166,7 +170,7 @@ void AudioThreads::MicToCableThread()
         AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
         bufferTime,
         0,
-        cableFmt,   // request stereo output but doesn't get it normally
+        cableFmt,   // request stereo output
         nullptr
     );
     if (FAILED(hr)) return;
@@ -204,17 +208,24 @@ void AudioThreads::MicToCableThread()
             continue;
         }
 
+
         BYTE* inData = nullptr;
         DWORD flags = 0;
 
         cap->GetBuffer(&inData, &frames, &flags, nullptr, nullptr);
 
+        // decouple inData to separate channels
+        std::vector<const float*> inputChannels(CHANNELS);
+        std::vector<float*> outputChannels(CHANNELS);
+
         UINT32 padding = 0;
         cableClient->GetCurrentPadding(&padding);
 
         UINT32 avail = bufferFrames - padding;
-        if (frames > avail)
-            frames = avail;
+        if (frames > avail) frames = avail;
+
+        //  A v a i l :   3 3 6 0 ,   P a d d i n g :   1 4 4 0 ,   B u f f e r F r a m e s :   4 8 0 0 ,   i n D a t a   s i z e :   8
+        //wprintf_s(L"Avail: %d, Padding: %d, BufferFrames: %d, inData size: %zu\n", avail, padding, bufferFrames, sizeof(inData));
 
         if (frames == 0)
         {
@@ -252,10 +263,44 @@ void AudioThreads::MicToCableThread()
             {
                 memset(outData, 0, frames * cableFmt->nBlockAlign);
             }
-            else
+            else 
             {
-                // formats the same, usually doesn't happen for me
-                memcpy(outData, inData, frames * cableFmt->nBlockAlign);
+                float* inFloat = reinterpret_cast<float*>(inData); 
+                float* outFloat = reinterpret_cast<float*>(outData);
+
+                float* left = new float[frames];
+                float* right = new float[frames];
+
+                // decouple input stereo 
+                for (UINT32 i = 0; i < frames; i++)
+                {
+                    left[i] = inFloat[i * 2];     // left
+                    right[i] = inFloat[i * 2 + 1]; // right
+                }
+
+                const float* inputChannels[2] = { left, right };
+                float* outputChannels[2] = { left, right };
+
+                const double pitch = 1.;
+
+                UINT32 processedFrames = stream.process(inputChannels, outputChannels, frames, frames, pitch);
+
+                for (UINT32 i = 0; i < processedFrames; i++)
+                {
+                    outFloat[i * 2] = outputChannels[0][i];
+                    outFloat[i * 2 + 1] = outputChannels[1][i];
+                }
+
+                // since not touching speed, input frame count should equal output frame count and this not run
+                for (int i = processedFrames; i < frames; i++)
+                {
+                    wprintf_s(L"we have the wrong number\n");
+                    outFloat[i * 2] = 0.0f;
+                    outFloat[i * 2 + 1] = 0.0f;
+                }
+
+                delete[] left;
+                delete[] right;
             }
 
             playPos = g_playStart;
