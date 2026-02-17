@@ -281,7 +281,7 @@ void AudioThreads::MicToCableThread()
                 const float* inputChannels[2] = { left, right };
                 float* outputChannels[2] = { left, right };
 
-                const double pitch = 1.;
+                const double pitch = 2.;
 
                 UINT32 processedFrames = stream.process(inputChannels, outputChannels, frames, frames, pitch);
 
